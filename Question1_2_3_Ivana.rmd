@@ -1,0 +1,191 @@
+---
+title: "Assignment 1"
+author: "Alaez Carmen, Albrecht Quentin, Ma Jiao, Ren Ivana, Trisolino Gabriele"
+date: "2026-11-16"
+output:
+  pdf_document:
+    latex_engine: xelatex
+    fig_caption: true
+    fig_crop: false
+  html_document:
+    toc: true
+    toc_depth: 2
+    code_folding: show
+fontsize: 10pt
+papersize: a4
+geometry: margin=2cm
+header-includes:
+  - \usepackage{float}
+  - \setlength{\intextsep}{8pt}
+  - \setlength{\textfloatsep}{8pt}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = TRUE,
+  fig.width = 8,
+  fig.height = 3.6,
+  fig.align = "center",
+  out.width = "90%",
+  fig.pos = "H",
+  out.extra = ""
+)
+
+library(dplyr)
+library(readr)
+library(ggplot2)
+
+# Import the data
+cases.2 <- read_tsv("cases-2.tsv", show_col_types = FALSE)
+population.2 <- read_tsv("population-2.tsv", show_col_types = FALSE)
+
+# Define the order of the age groups
+age_order <- c(
+  "0-4", "5-9", "10-14", "15-19", "20-24", "25-29",
+  "30-34", "35-39", "40-44", "45-49", "50-54", "55-59",
+  "60-64", "65-69", "70-74", "75-79", "80-84", "85-89"
+)
+
+# Define sex categories and colours
+sexes <- c("Female", "Male")
+cols <- c(Female = "#B34D70", Male = "#227C9D")
+```
+
+# Introduction
+
+This assignment analyses colon cancer cases in Sweden from 1970
+to 2022 by calendar year, age group and sex. The supplied data
+cover people aged 0–89 years.
+
+# Question 1: Cases by age group and sex
+
+The merged dataset, called `cases`, contains five-year age groups,
+sex, calendar year, the number of incident cases (`n`) and the
+population size (`n_pop`). Each row represents an age-year-sex
+combination.
+
+We sum the cases across calendar years within each age group
+and sex to compare their distributions over the study period.
+
+```{r q1-aggregate, echo=TRUE}
+cases <- left_join(cases.2, population.2,
+                   by = c("agegroup", "sex", "year"))
+cases$agegroup <- factor(cases$agegroup, levels = age_order)
+by_age <- aggregate(n ~ agegroup + sex, cases, sum)
+```
+
+```{r q1-prepare, include=FALSE}
+by_age$agegroup <- factor(by_age$agegroup, levels = age_order)
+```
+
+```{r q1-plot, fig.height=3, fig.cap="Colon cancer cases pooled over 1970–2022, by age group and sex."}
+ggplot(by_age, aes(x = agegroup, y = n, fill = sex)) +
+  geom_col() +
+  facet_wrap(~ sex) +
+  scale_fill_manual(values = cols) +
+  labs(
+    title = "Number of cases by age group and sex",
+    x = "Age group",
+    y = "Cases"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "none"
+  )
+```
+
+**Interpretation.** Case counts generally increase with age,
+reaching a peak at ages 75–79 for both sexes before decreasing
+in the oldest age groups. This decrease does not necessarily
+indicate a lower incidence rate, because population sizes
+differ across age groups.
+
+\newpage
+
+# Question 2: Annual cases by sex
+
+We sum the cases across age groups, retaining one total
+for each calendar year and sex.
+
+```{r q2-aggregate, echo=TRUE}
+annual_cases <- aggregate(n ~ year + sex, cases, sum)
+```
+
+```{r q2-plot, fig.height=4, fig.cap="Annual colon cancer cases, ages 0–89, separately by sex."}
+old_par <- par(mfrow = c(1, 2))
+
+for (s in sexes) {
+  a <- annual_cases[annual_cases$sex == s, ]
+  a <- a[order(a$year), ]
+
+  plot(
+    a$year, a$n,
+    type = "l",
+    col = cols[s],
+    main = s,
+    xlab = "Year",
+    ylab = "Annual cases",
+    ylim = range(annual_cases$n)
+  )
+}
+
+par(old_par)
+```
+
+**Interpretation.** The figure shows an increase in recorded
+cases in both sexes. Female counts rise from 1,196 in 1970
+to 2,713 in 2022, while male counts rise from 1,093 to 2,713.
+These counts do not distinguish between changes in population
+size, age composition and incidence.
+
+\newpage
+
+# Question 3: Population size by age, year and sex
+
+The second dataset, called `population.2`, is structured similarly
+to the cases dataset, with a column named `n_pop` for population size.
+
+We created plots covering all calendar years, comparing females
+and males using coloured lines. Population labels are shown
+in thousands.
+
+```{r q3-prepare, echo=TRUE}
+population_plot <- population.2 %>%
+  mutate(agegroup = factor(agegroup, levels = age_order))
+```
+
+```{r q3-plot, fig.cap="Population size over all years from 1970 to 2022.", fig.height=6.2, fig.width=7, out.width="90%"}
+ggplot(
+  population_plot,
+  aes(x = year, y = n_pop, colour = sex)
+) +
+  geom_line(linewidth = 0.8) +
+  facet_wrap(~ agegroup, ncol = 3) +
+  scale_colour_manual(values = cols) +
+  scale_x_continuous(
+    breaks = c(1970, 1990, 2010, 2022)
+  ) +
+  scale_y_continuous(
+    labels = function(x) x / 1000
+  ) +
+  labs(
+    title = "Population size over time by age group and sex",
+    x = "Calendar year",
+    y = "Population (thousands)",
+    colour = "Sex"
+  ) +
+  theme_minimal(base_size = 9) +
+  theme(
+    legend.position = "bottom",
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+```
+
+**Interpretation.** Population size changes over time, and these
+changes differ across age groups. The share aged 65–89 increases
+from approximately 15.3% to 21.9% among females and from 12.3%
+to 19.0% among males. Therefore, both the female and male
+populations become older. This matters because age composition
+influences the crude incidence rate.
